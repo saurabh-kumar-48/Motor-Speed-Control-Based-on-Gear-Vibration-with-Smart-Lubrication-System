@@ -1,0 +1,90 @@
+#include "esp_camera.h"
+#include <WiFi.h>
+
+// Pin for the button
+const int buttonPin = 2;
+
+// WiFi credentials
+const char* ssid = "YourWiFiSSID";
+const char* password = "YourWiFiPassword";
+
+// Camera configuration
+const int camera_width = 640;
+const int camera_height = 480;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(buttonPin, INPUT_PULLUP);
+  
+  // Initialize camera
+  camera_config_t config;
+  config.led_pin = -1;  // Disable the LED on the ESP32-CAM
+  config.pin_reset = -1;
+  config.pin_xclk = 0;
+  config.pin_sscb_sda = 26;
+  config.pin_sscb_scl = 27;
+  config.pin_d7 = 35;
+  config.pin_d6 = 34;
+  config.pin_d5 = 39;
+  config.pin_d4 = 36;
+  config.pin_d3 = 21;
+  config.pin_d2 = 19;
+  config.pin_d1 = 18;
+  config.pin_d0 = 5;
+  config.pin_vsync = 25;
+  config.pin_href = 23;
+  config.pin_pclk = 22;
+  config.xclk_freq_hz = 20000000;
+  config.pixel_format = PIXFORMAT_JPEG;
+  config.frame_size = FRAMESIZE_VGA;
+  config.jpeg_quality = 10;
+  config.fb_count = 2;
+  
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x", err);
+    return;
+  }
+
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting to WiFi...");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  if (digitalRead(buttonPin) == LOW) {
+    capturePhoto();
+    delay(1000);  // debounce
+  }
+}
+
+void capturePhoto() {
+  camera_fb_t * fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("Camera capture failed");
+    return;
+  }
+  
+  // Open file for writing
+  FILE * file = fopen("/photo.jpg", "wb");
+  if (!file) {
+    Serial.println("Failed to open file for writing");
+    esp_camera_fb_return(fb);
+    return;
+  }
+  
+  // Write image data to file
+  size_t bytes_written = fwrite(fb->buf, 1, fb->len, file);
+  fclose(file);
+  esp_camera_fb_return(fb);
+
+  Serial.println("Photo captured");
+}
